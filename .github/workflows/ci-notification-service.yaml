@@ -33,7 +33,7 @@ jobs:
         run: npm ci
 
       - name: ESLint (--max-warnings 0)
-        run: cd ${{ inputs.service-dir }} && npx eslint src/ --ext .js,.ts --max-warnings 0
+        run: npx eslint src/ --ext .js,.ts --max-warnings 0
 
       - name: npm test (Jest + coverage gate ≥ 80%)
         run: npm test -- --coverage --ci
