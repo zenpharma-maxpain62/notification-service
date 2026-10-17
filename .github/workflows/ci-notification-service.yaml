@@ -69,7 +69,7 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v5
         with:
           role-to-assume: arn:aws:iam::134448505602:role/zenpharma-dev-github-actions-role
-          region: ap-south-1
+          aws-region: ap-south-1
 
       - name: login to ecr
         uses: aws-actions/amazon-ecr-login@v2
