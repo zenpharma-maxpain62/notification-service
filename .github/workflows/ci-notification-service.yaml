@@ -119,7 +119,7 @@ jobs:
       - name: checkout gitops
         uses: actions/checkout@v4
         with:
-          repository: ${{ var.GITOPS_REPO }}
+          repository: ${{ vars.GITOPS_REPO }}
           token: ${{ secrets.GITOPS_TOKEN }}
           path: _gitops
 
