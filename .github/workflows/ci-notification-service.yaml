@@ -1,0 +1,105 @@
+name: ci notification service
+
+on: workflow_dispatch
+
+jobs:
+  build:
+    name: compile build test
+    permissions:
+      id-token: write
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: fetch tag
+        id: fetch-tag
+        run: echo "tag=$(git describe --tag --abbrev=0)" >> "$GITHUB_OUTPUT"
+
+      - name: show tag
+        run: echo ${{ steps.fetch-tag.outputs.tag }}
+
+      - name: setup nodejs
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: install dependencies
+        run: npm ci
+
+      - name: ESLint (--max-warnings 0)
+        run: cd ${{ inputs.service-dir }} && npx eslint src/ --ext .js,.ts --max-warnings 0
+
+      - name: npm test (Jest + coverage gate ≥ 80%)
+        run: npm test -- --coverage --ci
+        env:
+          NODE_ENV: test
+
+      - name: Upload Jest coverage report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: coverage-${{ inputs.service-name }}
+          path: coverage/
+          retention-days: 1
+
+      - name: sonar scan
+        uses: SonarSource/sonarqube-scan-action@da4450e400cebf84292b12a85d4ca0080ae2938c
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }} 
+        with:
+          args: >
+            -Dsonar.organization=${{ vars.SONAR_ORG }}
+            -Dsonar.projectKey=${{ vars.SONAR_PROJECT_KEY }}
+            -Dsonar.sources=src
+            -Dsonar.tests=src
+            -Dsonar.test.inclusions=**/*.test.js
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info
+
+      - name: npm audit (HIGH/CRITICAL → warn)
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: arn:aws:iam::134448505602:role/zenpharma-dev-github-actions-role
+          region: ap-south-1
+
+      - name: login to ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        id: login-to-ecr
+
+      - name: build docker image
+        id: build-docker-image
+        run: |
+          IMAGE="${{ steps.login-to-ecr.outputs.registry }}/notification-service:${{ steps.fetch-tag.outputs.tag }}"
+          docker build -t $IMAGE .
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+
+      - name: trivy scan
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: ${{ steps.build-docker-image.outputs.image }}
+          format: sarif
+          output: trivy-result.sarof
+          severity: HIGH,CRITICAL
+          exit-code: 0
+          ignore-unfixed: true
+
+      - name: upload trivy scan results
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-results
+          path: trivy-results.sarif
+          retention-days: 1
+
+      - name: push docker image
+        run: |
+          IMAGE="${{ steps.build-docker-image.outputs.image }}"
+          docker push $IMAGE
