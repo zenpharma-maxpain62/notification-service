@@ -17,7 +17,7 @@ jobs:
 
       - name: fetch tag
         id: fetch-tag
-        run:  
+        run:  echo "tag=$(git describe --tag --abbrev=0)" >> "$GITHUB_OUTPUT"
 
       - name: show tag
         run: echo ${{ steps.fetch-tag.outputs.tag }}
