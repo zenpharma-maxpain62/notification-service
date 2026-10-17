@@ -103,3 +103,47 @@ jobs:
         run: |
           IMAGE="${{ steps.build-docker-image.outputs.image }}"
           docker push $IMAGE
+
+  deploy:
+    name: deploy to gitops
+    permissions:
+      id-token: write
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout
+        uses: actions/checkout@v4
+        with: 
+          fetch-depth: 0
+
+      - name: checkout gitops
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ var.GITOPS_REPO }}
+          token: ${{ secrets.GITOPS_TOKEN }}
+          path: _gitops
+
+      - name: fetch git tag
+        id: fetch-git-tag
+        run: echo "tag=$(git describe --tag --abbrev=0)" >> "$GUTHUB_OUTPUT"
+
+      - name: update tag in gitops
+        run: |
+          cd _gitops
+          git pull
+
+          export IMAGE_TAG=${{ steps.fetch-git-tag.outputs.tag }}
+          export CURRENT_IMAGE_TAG=$(grep "tag:" envs/dev/values-notification-service.yaml | awk '{print $2}')
+
+          echo "Current image tag: $CURRENT_IMAGE_TAG"
+          echo "New image tag: $IMAGE_TAG"
+
+          sed -i "s/$CURRENT_IMAGE_TAG/$IMAGE_TAG/g" envs/dev/values-notification-service.yaml
+
+          git config user.name  "maxpain62"
+          git config user.email "maxpain62@gmail.com"
+
+          git add envs/dev/values-notification-service.yaml
+          git commit -m "Update notification-service image tag to $IMAGE_TAG"
+
+          git push
