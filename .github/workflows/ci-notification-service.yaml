@@ -17,7 +17,7 @@ jobs:
 
       - name: fetch tag
         id: fetch-tag
-        run: echo "tag=$(git describe --tag --abbrev=0)" >> "$GITHUB_OUTPUT"
+        run:  echo "tag=$(git describe --tag --abbrev=0)" >> "$GITHUB_OUTPUT"
 
       - name: show tag
         run: echo ${{ steps.fetch-tag.outputs.tag }}
@@ -126,7 +126,7 @@ jobs:
 
       - name: fetch git tag
         id: fetch-git-tag
-        run: echo "tag=$(git describe --tag --abbrev=0)" >> "$GUTHUB_OUTPUT"
+        run: echo "tag=$(git describe --tag --abbrev=0)" >> "$GITHUB_OUTPUT"
 
       - name: update tag in gitops
         run: |
